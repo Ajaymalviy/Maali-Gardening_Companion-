@@ -12,13 +12,13 @@ from .models import User
 
 # Load environment variables
 load_dotenv()
-
 # Initialize Flask extensions
-login_manager = LoginManager()
-login_manager.login_view = "auth.login"
 mail = Mail()
 oauth = OAuth()
 
+
+login_manager = LoginManager()
+login_manager.login_view = "auth.login"
 @login_manager.user_loader
 def load_user(user_id):
     db = current_app.config['DB_CONNECTION']
@@ -34,22 +34,50 @@ def load_user(user_id):
         )
     return None
 
+#------------------------------------------celery-task-queue-connection-with-raddis-----------------------------
+
+# Configuration
+# app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
+# app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+# celery = make_celery(app)
+
+# from celery import Celery
+# def make_celery(app_name=__name__):
+#     redis_uri = "redis://localhost:6379"
+#     return Celery(app_name, backend=redis_uri, broker= redis_uri)
+# celery  = make_celery()
+
+
+
+
 def create_app():
     """
     Application Factory: Creates and configures the Flask app.
     """
     app = Flask(__name__)
 
-    # MongoDB Configuration
-    MONGO_USER = quote_plus(os.getenv("MONGO_USER", ""))
-    MONGO_PASSWORD = quote_plus(os.getenv("MONGO_PASSWORD", ""))
-    MONGO_HOST = os.getenv("MONGO_HOST", "localhost")
-    MONGO_PORT = os.getenv("MONGO_PORT", "27017")
-    MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
-    MONGO_AUTH_SOURCE = os.getenv("MONGO_AUTH_SOURCE", "admin")
-    MONGO_URI = f"mongodb://{MONGO_USER}:{MONGO_PASSWORD}@{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB_NAME}?authSource={MONGO_AUTH_SOURCE}"
 
-    # App Configurations
+    # MONGO_URI='mongodb://admin:Gurpreet@23@3.86.209.148:27017/Gardening_Companion?authSource=admin'
+    MONGO_DB_NAME='Gardening_Companion'
+    MONGO_USER='admin'
+    MONGO_PASSWORD='Gurpreet@23' # Special characters like '@' need encoding
+    MONGO_HOST='3.86.209.148'
+    MONGO_PORT='27017'
+    MONGO_DB_NAME='Gardening_Companion'
+    MONGO_AUTH_SOURCE='admin'
+    # MongoDB Configuration
+    # MONGO_USER = admin
+    # MONGO_PASSWORD = Gurpreet@23
+    # MONGO_HOST = 86.209.148
+    # MONGO_PORT = 27017
+    # MONGO_DB_NAME = Gardening_Companion
+    # MONGO_AUTH_SOURCE = admin
+    encoded_user = quote_plus(MONGO_USER)
+    encoded_password = quote_plus(MONGO_PASSWORD)
+    # MONGO_URI = f"mongodb://{MONGO_USER}:{MONGO_PASSWORD}@{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB_NAME}?authSource={MONGO_AUTH_SOURCE}"
+    MONGO_URI = f"mongodb://{encoded_user}:{encoded_password}@{MONGO_HOST}:{MONGO_PORT}/{MONGO_DB_NAME}?authSource={MONGO_AUTH_SOURCE}"
+
+    # # App Configurations
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'DEV')
     app.config['MONGO_URI'] = MONGO_URI
     app.config['MONGO_DB_NAME'] = MONGO_DB_NAME
@@ -77,8 +105,8 @@ def create_app():
 
     oauth.register(
         name='google',
-        client_id=os.getenv("GOOGLE_CLIENT_ID"),
-        client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+        client_id='745426787344-1o3tnk39j9s84vtif2gbn8v277e0ks6r.apps.googleusercontent.com',
+        client_secret='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',
         access_token_url='https://accounts.google.com/o/oauth2/token',
         authorize_url='https://accounts.google.com/o/oauth2/auth',
         api_base_url='https://www.googleapis.com/oauth2/v2/',
@@ -98,10 +126,13 @@ def create_app():
     from .dashboard import dashboard_bp
     app.register_blueprint(dashboard_bp, url_prefix='/dashboard')
 
-    from .profile import profile_bp
-    app.register_blueprint(profile_bp, url_prefix='/profile')
+    # from .profile import profile_bp
+    # app.register_blueprint(profile_bp, url_prefix='/profile')
 
     from .admin import admin_bp
     app.register_blueprint(admin_bp, url_prefix='/admin')
+    
+    from .views import done
+    app.register_blueprint(done, url_prefix='/done')
     
     return app
