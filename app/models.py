@@ -27,7 +27,8 @@ class User(UserMixin):
         self.email = email
         self.phone_no = phone_no
         self.role = role
-
+    def get_id(self):
+        return str(self.id)
     @staticmethod
     def find_by_identifier(identifier):
         """Find a user by username, email, or phone number."""
@@ -59,19 +60,22 @@ class User(UserMixin):
         return db.users.find_one({"phone_no": phone_no})
 
     @staticmethod
-    def create_user(full_name, username, email, password, phone_no, role='user', status='active'):
+    def create_user(full_name, username, email, password, phone_no, role='user', status='active', profile_pic=None):
         """Create a new user in the database."""
         db = get_db()
-        hashed_password = generate_password_hash(password)
         user_data = {
             "full_name": full_name,
             "username": username,
             "email": email,
-            "password_hash": hashed_password,
             "phone_no": phone_no,
             "role": role,
-            "status": status
+            "status": status,
+            "profile_pic": profile_pic 
         }
+            # Only add hashed password if one is provided (i.e., non-OAuth users)
+        if password:
+            user_data["password_hash"] = generate_password_hash(password)
+
         result = db.users.insert_one(user_data)
         return str(result.inserted_id)
 

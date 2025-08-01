@@ -1,13 +1,14 @@
 import os
 import re
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app,jsonify,session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
 from flask_mail import Message
 from .models import User
 from . import mail
+import requests
 from .utils import generate_reset_token, verify_reset_token
-
+import config
 auth = Blueprint('auth', __name__)
 
 # Regex patterns
@@ -16,56 +17,122 @@ PASSWORD_REGEX = r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#_]{8,}$'
 PHONE_REGEX = r'^\+?[0-9]{10,15}$'
 USERNAME_REGEX = r'^[A-Za-z][A-Za-z0-9_]{4,29}$'
 
-# ---------- GOOGLE OAUTH ROUTES ----------
-@auth.route('/login/google')
+GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
+
+
+def get_google_provider_cfg():
+    return requests.get(GOOGLE_DISCOVERY_URL).json()
+
+
+# ---------- GOOGLE OAUTH ROUTES ----------\
+@auth.route('/login/now')
 def google_login():
-    redirect_uri = url_for('auth.google_callback', _external=True)
-    return current_app.oauth.google.authorize_redirect(redirect_uri)
+    google_provider_cfg = get_google_provider_cfg()
+    authorization_endpoint = google_provider_cfg["authorization_endpoint"]
 
-@auth.route('/login/google/callback')
-def google_callback():
+    request_uri = (
+        authorization_endpoint + 
+        "?response_type=code" +
+        f"&client_id={'745426787344-1o3tnk39j9s84vtif2gbn8v277e0ks6r.apps.googleusercontent.com'}" +
+        f"&redirect_uri={url_for('auth.callback', _external=True)}" +
+        "&scope=openid%20email%20profile"
+    )
+
+    return redirect(request_uri)
+
+
+@auth.route('/login/callback')
+def callback():
     try:
-        token = current_app.oauth.google.authorize_access_token()
-        resp = current_app.oauth.google.get('userinfo')
-        user_info = resp.json()
+        print(' ia m in try')
+        code = request.args.get("code")
+        print(
+            'code is something like ', code
+        )
+        if not code:
+            flash("Authorization code not provided", "danger")
+            return redirect(url_for("auth.login"))
 
+        google_provider_cfg = get_google_provider_cfg()
+        print('google provider ', google_provider_cfg)
+        token_endpoint = google_provider_cfg["token_endpoint"]
+        print('tocken endlpint', token_endpoint)
+        token_response = requests.post(
+            token_endpoint,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data={
+                "code": code,
+                "client_id": '745426787344-1o3tnk39j9s84vtif2gbn8v277e0ks6r.apps.googleusercontent.com',
+                "client_secret": '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',
+                "redirect_uri": url_for('auth.callback', _external=True),
+                "grant_type": "authorization_code"
+            },
+        )
+
+        token_json = token_response.json()
+        print('token_json', token_json)
+        access_token = token_json.get("access_token")
+        print('access token', access_token)
+
+        # Fetch user info from Google
+        userinfo_endpoint = google_provider_cfg["userinfo_endpoint"]
+        print('userinfo endpoint', userinfo_endpoint)
+        userinfo_response = requests.get(
+            userinfo_endpoint,
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+        user_info = userinfo_response.json()
+        print("userinfo", user_info)
+
+        # Extract relevant user fields
         email = user_info.get("email")
         full_name = user_info.get("name")
+        username = user_info.get("given_name")
+        profile_pic = user_info.get("picture", "")
+        print(f"whole detail like email = { email} , full name  = {full_name} , username =  {username } and profile_pic =  {profile_pic}")
 
         if not email:
             flash("No email found in Google account.", "danger")
             return redirect(url_for("auth.login"))
 
-        # Use User model to handle database operations
+        # Find or create user in your app's DB
         user = User.find_by_email(email)
+        print('user is ',user)
         if not user:
-            # Create new user through User model
             user_id = User.create_user(
                 full_name=full_name,
-                username=user_info.get("given_name"),
+                username=username,
                 email=email,
-                password=None,  # No password for OAuth users
+                password=None,
                 phone_no=None,
                 role="user",
                 status="active",
-                profile_pic=user_info.get("picture")
+                profile_pic=profile_pic
             )
             phone_no = None
+            user = User.find_by_email(email)
+   
         else:
             user_id = str(user['_id'])
             phone_no = user.get('phone_no')
             full_name = user.get('full_name', full_name)
+            username = user.get('username', username)
 
-        # Create user object for login
+        user_id_str = str(user_id)
+        print('useridstring is ',user_id_str)
+        # Create app user session
         user_obj = User(
-            id=user_id,
+            id=user_id_str,
             email=email,
-            username=user_info.get("given_name"),
+            username=username,
             full_name=full_name,
-            phone_no=phone_no
+            phone_no=phone_no,
+            role=user.get('role', 'user')
         )
+        print(f"Type of user_obj.id: {type(user_obj.id)}, Value: {user_obj.id}") # Inspect the id
+        print("Before login_user:", user_obj.__dict__)
         login_user(user_obj)
-
+        print("After login_user:", current_user)
         if not phone_no:
             flash("Please update your phone number.", "info")
             return redirect(url_for("auth.update_phone"))
@@ -77,6 +144,7 @@ def google_callback():
         print(f"Google Auth Error: {e}")
         flash("Google login failed. Please try again.", "danger")
         return redirect(url_for("auth.login"))
+
 
 # ---------- LOCAL AUTH ROUTES ----------
 @auth.route('/login', methods=['GET', 'POST'])
