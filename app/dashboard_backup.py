@@ -14,8 +14,9 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 # Configure the Gemini API
 
-api_key = os.getenv("GENAI_API_KEY")  # Use environment variable for API key
+api_key = 'AIzaSyAgiXHaX1IuWDErnEwfXdYRWMGhKUCehs0'  # Use environment variable for API key
 genai.configure(api_key=api_key)
+
 
 # Utility: Role-based access decorator
 def role_required(*roles):
@@ -53,6 +54,7 @@ def dashboard():
         #list of user garden
         id_current_user = ObjectId(current_user.id)
         user_id = ObjectId(current_user.id)
+        print('current user id is ', user_id)
         chat_session = ChatSession(user_id)
         user_garden = list(db.garden.find({"user_id": id_current_user},{"gardenName":1}))
 
@@ -74,6 +76,7 @@ def dashboard():
         
          
         user = db.users.find_one({"_id": ObjectId(current_user.id)}, {"role": 1, "_id": 0})
+        print('current user is ', user)
         user_role = user["role"]
         age=list(db.age.find())
         gemini_response = None
@@ -126,9 +129,11 @@ def dashboard():
 
         # Handle POST Requests
         if request.method == 'POST':
+            print('my post method is worked')
             # When the user selects a different garden
             if 'select_garden' in request.form:
                 garden_id = request.form.get('garden_id') or default_garden_id
+                print('garden id is', garden_id)
                 # print("select")
                 return redirect(url_for('dashboard.dashboard', garden_id=str(garden_obj_id)))
 
@@ -138,6 +143,7 @@ def dashboard():
                 plant_id = ObjectId(plant_id)
                 age_id = request.form.get('age_id')
                 age_id = ObjectId(age_id)
+                print('plant and age id is ', plant_id, age_id)
 
 
                 if plant_id:
@@ -218,6 +224,33 @@ def dashboard():
                                 "age_id": age_id,
                                 "quantity": 1  # Start with quantity 1
                             })
+                                                       # 🔔 Send Email Notification
+                            user = db.users.find_one({"_id": ObjectId(current_user.id)})
+                            print('user is ', user)
+                            if user:
+                                print('user is present and notification is sended')
+                                subject = f"New Plant Added to Your Garden: {plant_common_name}"
+                                body = f"""
+                                    Hello {user['full_name']},
+
+                                    A new plant has been added to your garden:
+
+                                    🌱 Common Name: {plant_common_name}
+                                    💧 Watering every {data['watering']} days
+                                    🌞 Sunlight requirement: {data['sunlight']}
+                                    🌾 Fertilizer: {data['fertilizer_type']}
+                                    🪴 Soil Type: {data['soil_type']}
+                                    ♻️ Change soil every {data['change_soil']} months
+
+                                    Happy Gardening! 🌼
+
+                                    - Garden Team
+                                """
+                                send_email_task.delay(
+                                    subject=subject,
+                                    recipients=[user['email']],
+                                    body=body
+                                )
                             flash(f"{plant_common_name} has been added to your garden!", "success")
 
                     except Exception as e:
@@ -569,9 +602,12 @@ def update_user_role(user_id):
     db.users.update_one({"_id"  : ObjectId(user_id)}, {"$set": {"role": new_role}})  # ✅ Fix: Convert to ObjectId
     return jsonify({"message": "User role updated successfully!"})
 
+from tasks import send_email_task
+
 @dashboard_bp.route('/add_plant', methods=['GET', 'POST'])
 @login_required
 def add_plant():
+    print('i am in add plant')
     if current_user.role != 'admin':
         return redirect(url_for('dashboard.dashboard'))
 
@@ -584,16 +620,18 @@ def add_plant():
         common_name = request.args.get('commonName', '')
         sapling_desc = request.args.get('saplingDescription', '')
         request_id = request.args.get('request_id', '')
-        print(request_id)
+        print('request id is', request_id)
         
         return render_template('admin.html', commonName=common_name, saplingDescription=sapling_desc)
 
     # If it's a POST request, handle the plant addition
-    if request.method == 'POST':
+    if  request.method == 'POST':
 
         if not request.is_json:
             return jsonify({"error": "Invalid content type, expected JSON"}), 415  # Ensure JSON format
         data = request.json  # Expecting JSON data
+        print('data is ',data)
+
         new_plant = {
             "commonName": data.get('commonName'),
             "scientificName": data.get('scientificName'),
@@ -612,9 +650,35 @@ def add_plant():
         if request_id:
             db.plant_requests.delete_one({"_id": ObjectId(request_id)})
 
+        # 🔔 Send Email Notification
+        # Assuming you know which user to notify — get their details from the request or DB
+        user_id = data.get('user_id')  # Make sure this comes from the frontend
+        user = db.users.find_one({"_id": ObjectId(user_id)})
 
-        return jsonify({"message": "Plant added successfully!"})
+        if user:
+            subject = f"New Plant Added to Your Garden: {new_plant['commonName']}"
+            body = f"""
+                    Hello {user['full_name']},
 
+                    A new plant has been added to your garden:
+
+                    🌱 Common Name: {new_plant['commonName']}
+                    🔬 Scientific Name: {new_plant['scientificName']}
+                    🌿 Family: {new_plant['familyCommonName']}
+                    📷 Image: {new_plant['imageURL']}
+                    📖 Description: {new_plant['saplingDescription']}
+
+                    Happy Gardening! 🌼
+
+                    - Garden Team
+                    """
+            send_email_task.delay(
+                subject=subject,
+                recipients=[user['email']],
+                body=body
+            )
+
+        return jsonify({"message": "Plant added and user notified successfully!"})     
 
 
 @dashboard_bp.route('/edit_plant/<plant_id>', methods=['PUT'])

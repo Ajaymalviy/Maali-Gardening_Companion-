@@ -11,8 +11,9 @@ import os
 logging.basicConfig(level=logging.ERROR)
 
 # Configure the Gemini API
-api_key = os.getenv("GENAI_API_KEY")
+api_key = 'AIzaSyAgiXHaX1IuWDErnEwfXdYRWMGhKUCehs0'  # Use environment variable for API key
 genai.configure(api_key=api_key)
+
 
 # MongoDB Helper
 def get_db():
@@ -27,7 +28,8 @@ class User(UserMixin):
         self.email = email
         self.phone_no = phone_no
         self.role = role
-
+    def get_id(self):
+        return str(self.id)
     @staticmethod
     def find_by_identifier(identifier):
         """Find a user by username, email, or phone number."""
@@ -59,19 +61,22 @@ class User(UserMixin):
         return db.users.find_one({"phone_no": phone_no})
 
     @staticmethod
-    def create_user(full_name, username, email, password, phone_no, role='user', status='active'):
+    def create_user(full_name, username, email, password, phone_no, role='user', status='active', profile_pic=None):
         """Create a new user in the database."""
         db = get_db()
-        hashed_password = generate_password_hash(password)
         user_data = {
             "full_name": full_name,
             "username": username,
             "email": email,
-            "password_hash": hashed_password,
             "phone_no": phone_no,
             "role": role,
-            "status": status
+            "status": status,
+            "profile_pic": profile_pic 
         }
+            # Only add hashed password if one is provided (i.e., non-OAuth users)
+        if password:
+            user_data["password_hash"] = generate_password_hash(password)
+
         result = db.users.insert_one(user_data)
         return str(result.inserted_id)
 
@@ -230,7 +235,7 @@ class GardenPlant:
             {"user_id": user_id, "garden_id": ObjectId(garden_id)},
             {"plant_id": 1, "_id": 0, "age_id": 1, "quantity": 1}
         ))
-        
+
         if not user_plants_data:
             return []
             
@@ -251,6 +256,7 @@ class GardenPlant:
                     plant_copy = plant.copy()
                     plant_copy["quantity"] = entry["quantity"]
                     plant_copy["age"] = age_data.get(str(entry["age_id"]), "Unknown")
+                    plant_copy["age_id"] = entry["age_id"]
                     final_plants.append(plant_copy)
                     
         return final_plants
@@ -425,3 +431,107 @@ class GeminiHelper:
 
         response = model.generate_content(prompt)
         return response.text
+
+class Chatbot:
+    @staticmethod
+    def get_user_gardens(user_id):
+        """Get formatted list of user's gardens with hyperlinks for chatbot response."""
+        db = get_db()
+        gardens = list(db.garden.find(
+            {"user_id": ObjectId(user_id)},
+            {"gardenName": 1}
+        ))
+        
+        if not gardens:
+            return "You haven't created any gardens yet."
+            
+        response = "Here are your gardens:\n\n"
+        for garden in gardens:
+            garden_id = str(garden['_id'])
+            garden_name = garden['gardenName']
+            response += f"🌱 <a href='/dashboard?garden_id={garden_id}'>{garden_name}</a>\n"
+        
+        return response
+
+    @staticmethod
+    def get_user_plants(user_id, garden_id):
+        """Get formatted list of user's plants for chatbot response."""
+        db = get_db()
+        garden_plants = list(db.garden_plant.find(
+            {"user_id": user_id, "garden_id": ObjectId(garden_id)},
+            {"plant_id": 1, "quantity": 1, "plant_common_name": 1}
+        ))
+        
+        if not garden_plants:
+            return "You haven't added any plants to this garden yet."
+            
+        response = "Here are your plants in this garden:\n\n"
+        for plant in garden_plants:
+            response += f"🌿 {plant['plant_common_name']} (Qty: {plant['quantity']})\n"
+        
+        return response
+
+    @staticmethod
+    def create_structured_prompt(user_input, chat_history):
+        """Create a more specific prompt structure for the chatbot."""
+        base_prompt = """
+        As a plant expert, provide to the point, brief and specific answers in cute kawaii tone about:
+        - Plant care and maintenance
+        - Plant diseases and treatments
+        - Gardening techniques
+        - Plant identification
+        - Botanical information
+        
+        Format your response as:
+        1. Direct answer to the question
+        2. Additional relevant details
+        but only when this format is applicable and relevant to their question
+        
+        If they greet you, greet them back in a friendly way.
+        If answer is not plant specific reply: "Please ask plant-specific questions!"
+        Don't start response with "Plantie 🌼:" 
+        Response should be in kawaii manner like talking to a friend.
+        
+        Previous context:
+        {context}
+        
+        Current question: {question}
+        """
+        
+        context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in chat_history[-15:]])
+        return base_prompt.format(context=context, question=user_input)
+
+    @staticmethod
+    def generate_response(prompt, chat_history, user_id=None, garden_id=None):
+        """Generate response using Gemini API."""
+        try:
+            #Check if user is asking about their gardens
+            if "my garden" in prompt.lower() or "list my gardens" in prompt.lower():
+                return Chatbot.get_user_gardens(user_id)
+                
+            # Check if user is asking about their plants
+            if "my plant" in prompt.lower() or "list my plants" in prompt.lower():
+                if not garden_id:
+                    garden_id = Garden.ensure_default_garden(user_id)
+                return Chatbot.get_user_plants(user_id, garden_id)
+                
+            full_prompt = Chatbot.create_structured_prompt(prompt, chat_history)
+            
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            response = model.generate_content(
+                full_prompt,
+                generation_config={
+                    'temperature': 0.7,
+                    'top_p': 0.8,
+                    'top_k': 40,
+                    'max_output_tokens': 500
+                }
+            )
+            
+            if response and hasattr(response, "text"):
+                return response.text.strip()
+                
+            return "I couldn't generate a response. Please try rephrasing your question."
+            
+        except Exception as e:
+            return f"An error occurred: {str(e)}. Please try again."
