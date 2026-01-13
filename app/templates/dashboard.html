@@ -1,277 +1,277 @@
-<!-- Bootstrap CSS (Make sure it's included in your project) -->
+    <!-- Bootstrap CSS (Make sure it's included in your project) -->
 
 
-{% extends "base.html" %}
+    {% extends "base.html" %}
 
-{% block title %}Dashboard - Gardening Companion{% endblock %}
+    {% block title %}Dashboard - Gardening Companion{% endblock %}
 
-{% block content %}
-<section class="container my-5">
+    {% block content %}
+    <section class="container my-5">
 
-    <!-- Dashboard Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <!-- Flash Messages -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    <div>
-                        {% for category, message in messages %}
-                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                                {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                            </div>
-                        {% endfor %}
-                    </br>
-                    </div>
+        <!-- Dashboard Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div>
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            {% endfor %}
+                        </br>
+                        </div>
+                    {% endif %}
+                {% endwith %}
+            <h2>Your Plants</h2>
+                {% if user_role == "admin" %}
+            <form action="{{ url_for('admin.admin_dashboard') }}" method="POST">
+                <button type="submit" class="btn btn-primary">Admin Panel</button>
+            </form>
                 {% endif %}
-            {% endwith %}
-        <h2>Your Plants</h2>
-            {% if user_role == "admin" %}
-        <form action="{{ url_for('admin.admin_dashboard') }}" method="POST">
-            <button type="submit" class="btn btn-primary">Admin Panel</button>
-        </form>
-            {% endif %}
 
-        <!-- Garden Selection Dropdown  -->
-         <!-- <div class="garden-dropdown">
-            <label for="gardenSelector" class="me-2">Select Garden:</label>
-            <select  id="gardenSelect" name="garden_id" onclick="filterPlants()" class="form-select d-inline-block w-auto">
-                {% if not user_garden %}
-                      <option value="default">My Garden (Default)</option>
-                {% else %}
-                {% for garden in user_garden %}
-                    <option value="{{ garden['_id'] }}">{{ garden["gardenName"] }}</option>
-                {% endfor %}
-                {% endif %}
-                <option value="add">+ Add New Garden</option>
-            </select>
-        </div>  -->
-        <!-- <div class="garden-dropdown">
-            <label for="gardenSelector" class="me-2">Select Garden:</label>
-            <select id="gardenSelect" name="garden_id" onclick="filterPlants()" class="form-select d-inline-block w-auto">
-                {% set selected_garden = request.args.get('garden_id', 'default') %}
-                
-                {% if not user_garden %}
-                    <option value="default" {% if selected_garden == 'default' %} selected {% endif %}>My Garden (Default)</option>
-                {% else %}
+            <!-- Garden Selection Dropdown  -->
+             <!-- <div class="garden-dropdown">
+                <label for="gardenSelector" class="me-2">Select Garden:</label>
+                <select  id="gardenSelect" name="garden_id" onclick="filterPlants()" class="form-select d-inline-block w-auto">
+                    {% if not user_garden %}
+                          <option value="default">My Garden (Default)</option>
+                    {% else %}
                     {% for garden in user_garden %}
-                        <option value="{{ garden['_id'] }}" {% if selected_garden == garden['_id']|string %} selected {% endif %}>
+                        <option value="{{ garden['_id'] }}">{{ garden["gardenName"] }}</option>
+                    {% endfor %}
+                    {% endif %}
+                    <option value="add">+ Add New Garden</option>
+                </select>
+            </div>  -->
+            <!-- <div class="garden-dropdown">
+                <label for="gardenSelector" class="me-2">Select Garden:</label>
+                <select id="gardenSelect" name="garden_id" onclick="filterPlants()" class="form-select d-inline-block w-auto">
+                    {% set selected_garden = request.args.get('garden_id', 'default') %}
+                    
+                    {% if not user_garden %}
+                        <option value="default" {% if selected_garden == 'default' %} selected {% endif %}>My Garden (Default)</option>
+                    {% else %}
+                        {% for garden in user_garden %}
+                            <option value="{{ garden['_id'] }}" {% if selected_garden == garden['_id']|string %} selected {% endif %}>
+                                {{ garden["gardenName"] }}
+                            </option>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <option value="add">+ Add New Garden</option>
+                </select>
+            </div> -->
+            <div class="garden-dropdown">
+                <label for="gardenSelector" class="me-2">Select Garden:</label>
+                <select id="gardenSelector" name="garden_id" class="form-select d-inline-block w-auto">
+                    {% for garden in user_garden %}
+                        <option value="{{ garden['_id'] }}" 
+
+                            {% if garden_id and garden['_id']|string == garden_id|string %} selected {% endif %}>
                             {{ garden["gardenName"] }}
                         </option>
                     {% endfor %}
-                {% endif %}
-                
-                <option value="add">+ Add New Garden</option>
-            </select>
-        </div> -->
-        <div class="garden-dropdown">
-            <label for="gardenSelector" class="me-2">Select Garden:</label>
-            <select id="gardenSelector" name="garden_id" class="form-select d-inline-block w-auto">
-                {% for garden in user_garden %}
-                    <option value="{{ garden['_id'] }}" 
+                    <option value="add">+ Add New Garden</option>
+                </select>
+                <button type="button" id="delGardenBtn" onclick="deleteSelectedGarden()">delete garden </button>
+            </div>
+          
+            
+            <!-- Hidden form to persist garden selection -->
+            <form id="gardenForm" action="{{ url_for('dashboard.dashboard') }}" method="get">
+                <input type="hidden" name="garden_id" id="selectedGardenId" value="{{ garden_id }}">
+            </form>
+            
+            
+            
+       
+         <!-- Modal for Adding a New Garden -->
+        <div id="addGardenModal" class="modal fade" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add New Garden</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form method="POST" action="{{ url_for('dashboard.add_garden') }}">
+                            <div class="mb-3">
+                                <label for="newGardenName" class="form-label">Garden Name:</label>
+                                <input type="text" id="newGardenName" name="garden_name" class="form-control" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary"> + Add Garden</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            </div>
 
-                        {% if garden_id and garden['_id']|string == garden_id|string %} selected {% endif %}>
-                        {{ garden["gardenName"] }}
-                    </option>
-                {% endfor %}
-                <option value="add">+ Add New Garden</option>
-            </select>
-            <button type="button" id="delGardenBtn" onclick="deleteSelectedGarden()">delete garden </button>
         </div>
-      
+        <!-- Display User Plants -->
+        <div class="row g-4">
+            {% for plant in user_plants %}
+            <div class="col-md-4">
+                <div class="card shadow-sm plant-card">
+                    
+                    <img src="{{ plant.imageURL if plant.imageURL  }}" 
+                         class="card-img-top" 
+                         alt=""
+                         data-id="{{ plant._id }}" 
+                         data-name="{{ plant.commonName }}" 
+                         data-scientific-name="{{ plant.scientificName }}" 
+                         data-rank="{{ plant.rank }}" 
+                         data-family="{{ plant.familyCommonName }}" 
+                         data-genus="{{ plant.genus }}" 
+                         data-edible="{{ 'Yes' if plant.edible else 'No' }}" 
+                         data-sapling-description="{{ plant.saplingDescription }}" 
+                         data-ageid="{{ plant.age_id}}"
+                         data-image-url="{{ plant.imageURL if plant.imageURL else url_for('static', filename='images/default_plant.jpg') }}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ plant.commonName }}</h5>
+                        <p class="card-text"><i class="fa-solid fa-water"></i> Watering Schedule: {{ plant.watering if plant.watering else 'N/A' }} days</p>
+                        <p class="card-text"><i class="fa-solid fa-seedling"></i> Fertilizing Schedule: {{ plant.fertilizing if plant.fertilizing else 'N/A' }} days</p>
+                        <p class="card-text"><i class="fa-solid fa-seedling"></i> Fertilizing type: {{ plant.fertilizer_type if plant.fertilizer_type else 'N/A' }} </p>
+                        <p class="card-text"><i class="fa-solid fa-seedling"></i> quantity: {{ plant.quantity }} </p> 
+                        <p class="card-text"><i class="fa-solid fa-seedling"></i> age: {{ plant.age }} </p>
+                        <p class="card-text"><i class="fa-solid fa-seedling"></i>Sunlight: 
+                            {% if plant.sunlight == 1 %}
+                                Full Sunlight
+                            {% elif plant.sunlight == 2 %}
+                                Partial Sunlight
+                            {% elif plant.sunlight == 3 %}
+                                No Sunlight
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </p>
+                        <p class="card-text"><i class="fa-solid fa-seedling"></i> Soil Type: {{ plant.soil_type if plant.soil_type else 'N/A' }} </p>
+                        <p class="card-text"><i class="fa-solid fa-seedling"></i> Repotting: {{ plant.change_soil if plant.change_soil else 'N/A' }} months </p>
+                </div>
+            </div>
+            </div>
+            {% endfor %}
+        </div>
         
-        <!-- Hidden form to persist garden selection -->
-        <form id="gardenForm" action="{{ url_for('dashboard.dashboard') }}" method="get">
-            <input type="hidden" name="garden_id" id="selectedGardenId" value="{{ garden_id }}">
-        </form>
-        
-        
-        
-   
-     <!-- Modal for Adding a New Garden -->
-    <div id="addGardenModal" class="modal fade" tabindex="-1">
+        <button id="add-plant-btn" class="btn btn-success mt-4" data-bs-toggle="modal" data-bs-target="#addPlantModal">Add New Plant</button>
+    </section>
+     
+
+
+
+    <!-- Plant Details Modal -->
+    <div id="plantDetailsModal" class="modal fade" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Add New Garden</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title">Plant Details</h5>
+                    <button type="button" class="btn-close" name="show_plant" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <form method="POST" action="{{ url_for('dashboard.add_garden') }}">
-                        <div class="mb-3">
-                            <label for="newGardenName" class="form-label">Garden Name:</label>
-                            <input type="text" id="newGardenName" name="garden_name" class="form-control" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary"> + Add Garden</button>
+                    <img id="plantImage" src="" alt="" class="img-fluid w-100 mb-3" style="max-width: 700px;">
+                    <h5 id="plantName"></h5>
+                    <p><strong>Scientific Name:</strong> <span id="plantScientificName"> </span></p>
+                    
+                    <p><strong>Rank:</strong> <span id="plantRank"></span></p>
+                    <p><strong>Family Common Name:</strong> <span id="plantFamily"> " </span></p>
+                    <p><strong>Genus:</strong> <span id="plantGenus"></span></p>
+                    <p><strong>Edible:</strong> <span id="plantEdible"></span></p>
+                    <p><strong>Sapling Description:</strong> <span id="plantSaplingDescription"> </span></p>
+                    <p><strong>Plant Description:</strong><span id="plantDescription"></span></p>
+
+
+                    <p><strong>How to Plant a Sapling:</strong><span id="howToPlant"></span></p>
+
+                    
+
+                    <!-- Remove Plant Button inside Modal -->
+                    <form method="POST" action="{{ url_for('dashboard.dashboard') }}">
+                        <input type="hidden" id="modalPlantId" name="plant_id" value="">
+                        <input type="hidden"  id= "modalAgeId" name="age_id" value="">
+                        <input type="hidden"  id= "modalGardenId" name="garden_id" value="{{ garden_id}}">
+                        <button type="submit" name="remove_plant" class="btn btn-danger">Remove</button>
                     </form>
                 </div>
             </div>
         </div>
-        </div>
-
     </div>
-    <!-- Display User Plants -->
-    <div class="row g-4">
-        {% for plant in user_plants %}
-        <div class="col-md-4">
-            <div class="card shadow-sm plant-card">
-                
-                <img src="{{ plant.imageURL if plant.imageURL  }}" 
-                     class="card-img-top" 
-                     alt=""
-                     data-id="{{ plant._id }}" 
-                     data-name="{{ plant.commonName }}" 
-                     data-scientific-name="{{ plant.scientificName }}" 
-                     data-rank="{{ plant.rank }}" 
-                     data-family="{{ plant.familyCommonName }}" 
-                     data-genus="{{ plant.genus }}" 
-                     data-edible="{{ 'Yes' if plant.edible else 'No' }}" 
-                     data-sapling-description="{{ plant.saplingDescription }}" 
-                     data-ageid="{{ plant.age_id}}"
-                     data-image-url="{{ plant.imageURL if plant.imageURL else url_for('static', filename='images/default_plant.jpg') }}">
-                <div class="card-body">
-                    <h5 class="card-title">{{ plant.commonName }}</h5>
-                    <p class="card-text"><i class="fa-solid fa-water"></i> Watering Schedule: {{ plant.watering if plant.watering else 'N/A' }} days</p>
-                    <p class="card-text"><i class="fa-solid fa-seedling"></i> Fertilizing Schedule: {{ plant.fertilizing if plant.fertilizing else 'N/A' }} days</p>
-                    <p class="card-text"><i class="fa-solid fa-seedling"></i> Fertilizing type: {{ plant.fertilizer_type if plant.fertilizer_type else 'N/A' }} </p>
-                    <p class="card-text"><i class="fa-solid fa-seedling"></i> quantity: {{ plant.quantity }} </p> 
-                    <p class="card-text"><i class="fa-solid fa-seedling"></i> age: {{ plant.age }} </p>
-                    <p class="card-text"><i class="fa-solid fa-seedling"></i>Sunlight: 
-                        {% if plant.sunlight == 1 %}
-                            Full Sunlight
-                        {% elif plant.sunlight == 2 %}
-                            Partial Sunlight
-                        {% elif plant.sunlight == 3 %}
-                            No Sunlight
-                        {% else %}
-                            N/A
-                        {% endif %}
-                    </p>
-                    <p class="card-text"><i class="fa-solid fa-seedling"></i> Soil Type: {{ plant.soil_type if plant.soil_type else 'N/A' }} </p>
-                    <p class="card-text"><i class="fa-solid fa-seedling"></i> Repotting: {{ plant.change_soil if plant.change_soil else 'N/A' }} months </p>
-            </div>
-        </div>
-        </div>
-        {% endfor %}
-    </div>
-    
-    <button id="add-plant-btn" class="btn btn-success mt-4" data-bs-toggle="modal" data-bs-target="#addPlantModal">Add New Plant</button>
-</section>
- 
 
+    <!-- Add Plant Modal -->
+    <div id="addPlantModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add New Plant</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Add Plant Form -->
+                    <form method="POST" action="{{ url_for('dashboard.dashboard') }}">
+                        <div class="mb-3">
+                            <label class="form-label">Select Plant:</label>
+                            <input type="hidden" name="garden_id" value="{{ selected_garden }}">
+                            <input type="hidden" name="plant_id" id="selectedPlant"> <!-- Hidden input for form submission -->
 
-
-<!-- Plant Details Modal -->
-<div id="plantDetailsModal" class="modal fade" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Plant Details</h5>
-                <button type="button" class="btn-close" name="show_plant" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <img id="plantImage" src="" alt="" class="img-fluid w-100 mb-3" style="max-width: 700px;">
-                <h5 id="plantName"></h5>
-                <p><strong>Scientific Name:</strong> <span id="plantScientificName"> </span></p>
-                
-                <p><strong>Rank:</strong> <span id="plantRank"></span></p>
-                <p><strong>Family Common Name:</strong> <span id="plantFamily"> " </span></p>
-                <p><strong>Genus:</strong> <span id="plantGenus"></span></p>
-                <p><strong>Edible:</strong> <span id="plantEdible"></span></p>
-                <p><strong>Sapling Description:</strong> <span id="plantSaplingDescription"> </span></p>
-                <p><strong>Plant Description:</strong><span id="plantDescription"></span></p>
-
-
-                <p><strong>How to Plant a Sapling:</strong><span id="howToPlant"></span></p>
-
-                
-
-                <!-- Remove Plant Button inside Modal -->
-                <form method="POST" action="{{ url_for('dashboard.dashboard') }}">
-                    <input type="hidden" id="modalPlantId" name="plant_id" value="">
-                    <input type="hidden"  id= "modalAgeId" name="age_id" value="">
-                    <input type="hidden"  id= "modalGardenId" name="garden_id" value="{{ garden_id}}">
-                    <button type="submit" name="remove_plant" class="btn btn-danger">Remove</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Add Plant Modal -->
-<div id="addPlantModal" class="modal fade" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Add New Plant</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Add Plant Form -->
-                <form method="POST" action="{{ url_for('dashboard.dashboard') }}">
-                    <div class="mb-3">
-                        <label class="form-label">Select Plant:</label>
-                        <input type="hidden" name="garden_id" value="{{ selected_garden }}">
-                        <input type="hidden" name="plant_id" id="selectedPlant"> <!-- Hidden input for form submission -->
-
-                        <!-- Custom Searchable Dropdown -->
-                        <div class="dropdown w-100">
-                            <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="plantDropdownButton" data-bs-toggle=" dropdown" aria-expanded="false">
-                            Select a plant
-                            </button>
-                            <ul class="dropdown-menu w-100 p-2" id="plantDropdownMenu" style="max-height: 250px; overflow-y: auto;">
-                                <li class="p-2">
-                                    <input type="text" class="form-control" id="plantSearch" placeholder="Search plants...">
-                                </li>
-                                <ul id="plantList" class="list-unstyled">
-                                    {% if plants %}
-                                        {% for plant in plants %}
-                                            <li><a class="dropdown-item plant-option" href="#" data-value="{{ plant._id }}">{{ plant.commonName }}</a></li>
-                                        {% endfor %}
-                                    {% else %}
-                                        <li class="p-2 text-muted">No plants available</li>
-                                    {% endif %}
+                            <!-- Custom Searchable Dropdown -->
+                            <div class="dropdown w-100">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="plantDropdownButton" data-bs-toggle=" dropdown" aria-expanded="false">
+                                Select a plant
+                                </button>
+                                <ul class="dropdown-menu w-100 p-2" id="plantDropdownMenu" style="max-height: 250px; overflow-y: auto;">
+                                    <li class="p-2">
+                                        <input type="text" class="form-control" id="plantSearch" placeholder="Search plants...">
+                                    </li>
+                                    <ul id="plantList" class="list-unstyled">
+                                        {% if plants %}
+                                            {% for plant in plants %}
+                                                <li><a class="dropdown-item plant-option" href="#" data-value="{{ plant._id }}">{{ plant.commonName }}</a></li>
+                                            {% endfor %}
+                                        {% else %}
+                                            <li class="p-2 text-muted">No plants available</li>
+                                        {% endif %}
+                                    </ul>
                                 </ul>
-                            </ul>
-                        </div>
-                        <br>
+                            </div>
+                            <br>
 
-                         <!-- Age Dropdown (Without Search) -->
-                        <label for="age_id" class="form-label">Select Age:</label>
-                        <select id="age_id" class="form-control" name="age_id" required>
-                            <option value="" disabled selected>Select age</option>
-                            {% for a in age %}
-                                <option value="{{ a._id }}">{{ a.age }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <button type="submit" name="add_plant" class="btn btn-primary">Add Plant</button>
-                </form>
+                             <!-- Age Dropdown (Without Search) -->
+                            <label for="age_id" class="form-label">Select Age:</label>
+                            <select id="age_id" class="form-control" name="age_id" required>
+                                <option value="" disabled selected>Select age</option>
+                                {% for a in age %}
+                                    <option value="{{ a._id }}">{{ a.age }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" name="add_plant" class="btn btn-primary">Add Plant</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
-{% if user_role == "user" %}
-<a href="{{ url_for('dashboard.request_plant') }}" class="btn btn-warning mt-4">Request a New Plant</a>
-{% endif %}
+    {% if user_role == "user" %}
+    <a href="{{ url_for('dashboard.request_plant') }}" class="btn btn-warning mt-4">Request a New Plant</a>
+    {% endif %}
 
-<div id="chatbot-container" class="chatbot-container">
-    <!-- Chatbot Toggle Button -->
-    <form method="POST" action="{{ url_for('dashboard.chatbot_toggle',garden_id=garden_id) }}">
-        <input type="hidden" name="garden_id" id="hidden-garden-id" value="{{ garden_id }}">
-        <button class="chatbot-toggle-btn">
-            <i class="fa-solid fa-comments"></i>
-        </button>
-    </form>
-    
-    <div class="container-fluid">
-        {% if chatbot_open %}
-        <div class="card shadow" style="position: absolute; bottom: 70px; right: 0; width: 500px; z-index: 1000;">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">Plantie 🌻</h6>
-                <button type="button" class="btn-close btn-close-white" aria-label="Close" 
-                        onclick="document.querySelector('form[action*=\'chatbot_toggle\']').submit();"></button>
-            </div>
-            <div id="chat-body" class="card-body chat-body" style="height: 350px; overflow-y: auto; padding: 15px;">
+    <div id="chatbot-container" class="chatbot-container">
+        <!-- Chatbot Toggle Button -->
+        <form method="POST" action="{{ url_for('dashboard.chatbot_toggle',garden_id=garden_id) }}">
+            <input type="hidden" name="garden_id" id="hidden-garden-id" value="{{ garden_id }}">
+            <button class="chatbot-toggle-btn">
+                <i class="fa-solid fa-comments"></i>
+            </button>
+        </form>
+        
+        <div class="container-fluid">
+            {% if chatbot_open %}
+            <div class="card shadow" style="position: absolute; bottom: 70px; right: 0; width: 500px; z-index: 1000;">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Plantie 🌻</h6>
+                    <button type="button" class="btn-close btn-close-white" aria-label="Close" 
+                            onclick="document.querySelector('form[action*=\'chatbot_toggle\']').submit();"></button>
+                </div>
+                <div id="chat-body" class="card-body chat-body" style="height: 350px; overflow-y: auto; padding: 15px;">
                 {% if chat_history %}
                     {% for message in chat_history %}
                         {% if message.role == 'User' %}
@@ -287,7 +287,19 @@
                                 <div class="message bot-message">
                                     <div class="bot-header mb-1">Plantie 🌻</div>
                                     <div class="message-content formatted-content">
-                                        
+                                        <!-- {% set content = message.content | join('\n') %}
+                                        {% for line in content.split('\n') %}
+                                            {% if line.startswith('* ') %}
+                                                {% set bullet_text = line[2:] %}
+                                                {% set formatted_text = bullet_text | replace("**", "<strong>", 1) | replace("**", "</strong>", 1) %}
+                                                <p class="mb-2"><span class="bullet">🌱</span> {{ formatted_text | safe }}</p>
+                                            {% elif '**' in line %}
+                                                {% set formatted_text = line | replace("**", "<strong>", 1) | replace("**", "</strong>", 1) %}
+                                                <p class="mb-2">{{ formatted_text | safe }}</p>
+                                            {% else %}
+                                                <p class="mb-2">{{ line }}</p>
+                                            {% endif %}
+                                        {% endfor %} -->
                                         {% set content = message.content %}
                                         {% for line in content.split('\n') %}
                                             {% if line.startswith('* ') %}
@@ -310,28 +322,28 @@
                     <div class="text-center">
                         <p class="text-muted">Hi! I am Plantie 🌻. Ask me anything about plants! 😊</p>
                     </div>
-                {% endif %}
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-light">
+                    <form method="POST" action="{{ url_for('dashboard.chatbot', garden_id=garden_id) }}" class="mb-0" id="chat-form">
+                        <div class="input-group">
+                            <input type="hidden" name="garden_id" value="{{ garden_id }}">
+                            <input type="text" 
+                                   name="message" 
+                                   class="form-control" 
+                                   placeholder="Type your message..." 
+                                   required 
+                                   autocomplete="off" id="chat-input">
+                            <button class="btn btn-success" type="submit" id="send-btn">
+                                 <span id="send-text">Send</span>
+                                 <span id="loading-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
-            <div class="card-footer bg-light">
-                <form method="POST" action="{{ url_for('dashboard.chatbot', garden_id=garden_id) }}" class="mb-0" id="chat-form">
-                    <div class="input-group">
-                        <input type="hidden" name="garden_id" value="{{ garden_id }}">
-                        <input type="text" 
-                               name="message" 
-                               class="form-control" 
-                               placeholder="Type your message..." 
-                               required 
-                               autocomplete="off" id="chat-input">
-                        <button class="btn btn-success" type="submit" id="send-btn">
-                             <span id="send-text">Send</span>
-                             <span id="loading-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
-                        </button>
-                    </div>
-                </form>
-            </div>
+            {% endif %}
         </div>
-        {% endif %}
     </div>
-</div>
-<script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
-{% endblock %}
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+    {% endblock %}
